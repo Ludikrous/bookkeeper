@@ -13,6 +13,8 @@ from bs4 import BeautifulSoup as bs
 from influxdb import InfluxDBClient
 from datetime import datetime
 
+from multiprocessing import Pool
+
 # ==============================================================================
 
 def process(page):
@@ -79,6 +81,31 @@ def main(args):
     # Send all info to InfluxDB
     client.write_points(customToInflux(process(page)))
 
+# ==============================================================================
+
+def assignment(link):
+    return customToInflux(process(bs(r.get(link).content, "lxml")))
+
+def multithread():
+    # Instantiate a connection to the InfluxDB
+    host = 'localhost'
+    port = '8086'
+    client = InfluxDBClient(host, port, '', '', 'bookkeeper')
+    
+    # Get links to scrape
+    with open('/home/dhanvee/bookkeeper/testudolinks.txt') as f:
+        links = f.read().splitlines()
+
+    # Make a pool and make it work
+    p = Pool(6)
+    data = p.map(assignment, links)
+    
+    print("Sending to InfluxDB")
+    # Process the HTML to get a JSON/dict in the following format:
+    # Send all info to InfluxDB
+    for points in data:
+        client.write_points(points)
+
 
 # ==============================================================================
 
@@ -89,9 +116,6 @@ if __name__ == "__main__":
     """ This is executed when run from the command line """
     parser = argparse.ArgumentParser()
 
-    # Optional argument flag which defaults to False
-    parser.add_argument("-a", "--auto", action="store_true", default=False, dest="auto")
-    
     # Required positional argument
     parser.add_argument("pagelink", help="A link to the page you wish to monitor (like https://app.testudo.umd.edu/soc/202008/CMSC)")
     
@@ -99,4 +123,8 @@ if __name__ == "__main__":
     # parser.add_argument("-n", "--name", action="store", dest="name")
     
     args = parser.parse_args()
-    main(args)
+    
+    if args.pagelink == "UMD_CUSTOM":
+        multithread()
+    else:
+        main(args)
